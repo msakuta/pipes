@@ -459,16 +459,35 @@
 //			practiceMode = e.getButton() != e.BUTTON1;
 
 			for(var i = 0; i < size * size; i++)
-				board[i] = newblock();
+				board[i] = newblock(true);
 
 			createElements();
 
 			updateHighScores();
 		}
 
-		function newblock(){
+		function newblock(initial){
+			var sourceProb = 0.1;
+			var sinkProb = 0.1;
+
+			// Sources and sinks probability is weighted so that the number of
+			// the tiles of those types will not become zero.
+			if(!initial){
+				var sources = 0;
+				var sinks = 0;
+				for(var jy = 0; jy < size; jy++) for(var jx = 0; jx < size; jx++){
+					if(board[jy * size + jx] & sourceBit)
+						sources++;
+					if(board[jy * size + jx] & sinkBit)
+						sinks++;
+				}
+				if(sourceProb < 1 / (1 + sources))
+					sourceProb = 1 / (1 + sources);
+				if(sinkProb < 1 / (1 + sinks))
+					sinkProb = 1 / (1 + sinks);
+			}
 			return (Math.random() * 150) == 0 ? 0 : Math.floor(Math.random() * 15) + 1
-				+ (Math.random() < 0.1 ? sourceBit : Math.random() < 0.1 ? sinkBit : 0);
+				+ (Math.random() < sourceProb ? sourceBit : Math.random() < sinkProb ? sinkBit : 0);
 		}
 
 		function fallCheck(){
@@ -490,113 +509,50 @@
 
 		function check(){
 
-			if(true || eraseEffectTime !== 0 || fallTime !== 0 || rollTime !== 0)
+			if(eraseEffectTime !== 0 || fallTime !== 0 || rollTime !== 0)
 				return;
 
 			eraseFrame = 0;
 
 			// horizontal
-			for(var r = 0; r < size; r++) for(var c = 0; c < size - 3; c++){
+			for(var r = 0; r < size; r++) for(var c = 0; c < size; c++){
 				var n, i, cc = 1;
-				var src = board[r * size + c] & ~(eraseEffectBit);
-				if(src === 0 || src === 1)
+				var src = board[r * size + c] & ~(eraseEffectBit | fallEffectBit);
+				if(!(src & sourceBit))
 					continue;
-				for(i = 1; c + i < size; i++){
-					var target = board[r * size + (c + i)];
-					if((target & ~eraseEffectBit) != src)
+				var dist = new Array(size * size);
+				var sinked = false;
+				dist[r * size + c] = 1;
+				for(var j = 0; j < size * size; j++){
+					var count = 0;
+					for(var jy = 0; jy < size; jy++) for(var jx = 0; jx < size; jx++){
+						if(dist[jy * size + jx]){
+							if(0 < jx && !dist[jy * size + (jx - 1)] && board[jy * size + jx] & 1 && board[jy * size + (jx - 1)] & 4)
+								count += dist[jy * size + (jx - 1)] = 1;
+							if(0 < jy && !dist[(jy - 1) * size + jx] && board[jy * size + jx] & 2 && board[(jy - 1) * size + jx] & 8)
+								count += dist[(jy - 1) * size + jx] = 1;
+							if(jx < size-1 && !dist[jy * size + (jx + 1)] && board[jy * size + jx] & 4 && board[jy * size + (jx + 1)] & 1)
+								count += dist[jy * size + (jx + 1)] = 1;
+							if(jy < size-1 && !dist[(jy + 1) * size + jx] && board[jy * size + jx] & 8 && board[(jy + 1) * size + jx] & 2)
+								count += dist[(jy + 1) * size + jx] = 1;
+							if(board[jy * size + jx] & sinkBit)
+								sinked = true;
+						}
+					}
+					if(!count)
 						break;
-					else if(0 === (target & eraseEffectBit))
-						cc++;
 				}
-				if(i < 4 || cc === 1)
-					continue;
-				for(var j = 0; j < i; j++)
-					board[r * size + (c + j)] |= eraseEffectBit;
-	/*			for(n = r; 0 <= n; n--) for(int j = 0; j < i; j++){
-					if(n != 0)
-						board[n * 7 + (c + j)] = board[(n - 1) * 7 + (c + j)] | (n == r ? eraseEffectBit : 0);
-					else
-						board[n * 7 + (c + j)] = newblock();
-					board[n * 7 + (c + j)] |= (n == r ? eraseEffectBit : 0);
-				}*/
-				scorePoint(cc, r * cellsize, c * cellsize + i * cellsize / 2);
-			}
-
-			// vertical
-			for(r = 0; r < size - 3; r++) for(c = 0; c < size; c++){
-				var n, i, cc = 1;
-				var src = board[r * size + c] & ~(eraseEffectBit);
-				if(src === 0 || src === 1)
-					continue;
-				for(i = 1; r + i < size; i++){
-					var target = board[(r + i) * size + c];
-					if((target & ~eraseEffectBit) != src)
-						break;
-					else if(0 === (target & eraseEffectBit))
-						cc++;
+				if(sinked){
+					var cc = 0;
+					for(var jy = 0; jy < size; jy++) for(var jx = 0; jx < size; jx++){
+						if(dist[jy * size + jx]){
+							board[jy * size + jx] |= eraseEffectBit;
+							cc++;
+						}
+					}
+					scorePoint(cc, r * cellsize, c * cellsize + i * cellsize / 2);
 				}
-				if(i < 4 || cc === 1)
-					continue;
-				for(var j = 0; j < i; j++)
-					board[(r + j) * size + c] |= eraseEffectBit;
-	/*			for(n = r + i - 1; 0 <= n; n--){
-					if(i < n)
-						board[n * 7 + c] = board[(n - i) * 7 + c];
-					else
-						board[n * 7 + c] = newblock();
-					board[n * 7 + c] |= (r <= n ? eraseEffectBit : 0);
-				}*/
-				scorePoint(cc, r * cellsize + i * cellsize / 2, c * cellsize);
 			}
-
-			// rightside-down diagonal
-			for(r = 0; r < size - 3; r++) for(c = 0; c < size - 3; c++){
-				var n, i, cc = 1;
-				var src = board[r * size + c] & ~(eraseEffectBit);
-				if(src === 0 || src === 1)
-					continue;
-				for(i = 1; c + i < size && r + i < size; i++){
-					var target = board[(r + i) * size + (c + i)];
-					if((target & ~eraseEffectBit) != src)
-						break;
-					else if(0 === (target & eraseEffectBit))
-						cc++;
-				}
-				if(i < 4 || cc === 1)
-					continue;
-				for(var j = 0; j < i; j++)
-					board[(r + j) * size + (c + j)] |= eraseEffectBit;
-	/*			for(int j = 0; j < i; j++) for(n = r + j; 0 <= n; n--) if(n != 0)
-					board[n * 7 + (c + j)] = board[(n - 1) * 7 + (c + j)] | (n == r + j ? eraseEffectBit : 0);
-				else
-					board[n * 7 + (c + j)] = newblock();*/
-				scorePoint(cc, r * cellsize + i * cellsize / 2, c * cellsize + i * cellsize / 2);
-			}
-
-			// rightside-up diagonal
-			for(c = 0; c < size - 3; c++) for(r = 3; r < size; r++){
-				var n, i, cc = 1;
-				var src = board[r * size + c] & ~(eraseEffectBit);
-				if(src === 0 || src === 1)
-					continue;
-				for(i = 1; c + i < size && 0 <= r - i; i++){
-					var target = board[(r - i) * size + (c + i)];
-					if((target & ~eraseEffectBit) != src)
-						break;
-					else if(0 === (target & eraseEffectBit))
-						cc++;
-				}
-				if(i < 4 || cc === 1)
-					continue;
-				for(var j = 0; j < i; j++)
-					board[(r - j) * size + (c + j)] |= eraseEffectBit;
-	/*			for(int j = 0; j < i; j++) for(n = r - j; 0 <= n; n--) if(n != 0)
-					board[n * 7 + (c + j)] = board[(n - 1) * 7 + (c + j)] | (n == r - j ? eraseEffectBit : 0);
-				else
-					board[n * 7 + (c + j)] = newblock();*/
-				scorePoint(cc, r * cellsize - i * cellsize / 2, c * cellsize + i * cellsize / 2);
-			}
-
 		}
 
 		function scorePoint(cc, r, c){
