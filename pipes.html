@@ -486,8 +486,13 @@
 				if(sinkProb < 1 / (1 + sinks))
 					sinkProb = 1 / (1 + sinks);
 			}
-			return (Math.random() * 150) == 0 ? 0 : Math.floor(Math.random() * 15) + 1
-				+ (Math.random() < sourceProb ? sourceBit : Math.random() < sinkProb ? sinkBit : 0);
+			var ret = (Math.random() < sourceProb ? sourceBit : Math.random() < sinkProb ? sinkBit : 0);
+			var candidates;
+			if(ret & (sourceBit | sinkBit))
+				candidates = [1,2,4,8]; // Dead-ends
+			else
+				candidates = [3,5,6,7,9,10,11,12,13,14,15]; // All options except dead-ends
+			return candidates[Math.floor(Math.random() * candidates.length)] | ret;
 		}
 
 		function fallCheck(){
