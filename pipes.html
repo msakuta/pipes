@@ -152,6 +152,29 @@
 			return (v & (eraseEffectBit | fallEffectBit | sourceBit | sinkBit)) | ((v >> 1) | (v << 3)) & 0xf;
 		}
 
+		function subtractGauge(){
+			if(gameover)
+				return false;
+			var speed = fallTime !== 0 || eraseEffectTime !== 0 ? 0 : (level + 1) * (level % 6 == 5 ? 0.2 : 1) * 0.05;
+			if(subgauge < speed){
+				speed -= subgauge;
+				subgauge = 0;
+				speed *= 0.25;
+				if(maingauge < speed){
+					if(practiceMode)
+						maingauge = 0;
+					else
+						becomeGameover();
+					return false;
+				}
+				else
+					maingauge -= speed;
+			}
+			else
+				subgauge -= speed;
+			return true;
+		}
+
 		function createElements(){
 			cellElems = new Array(size * size);
 
@@ -203,6 +226,9 @@
 						// If the player clicked on the last row or column,
 						// ignore it because you cannot rotate beyond border.
 						if(size - 1 <= c || size - 1 <= r)
+							return;
+
+						if(!subtractGauge())
 							return;
 
 						// Rotate the blocks counterclockwise
@@ -664,23 +690,6 @@
 			if(!gameover){
 				fallCheck();		// fall flag check precedes
 				check();
-
-				var speed = fallTime !== 0 || eraseEffectTime !== 0 ? 0 : (level + 1) * (level % 6 == 5 ? 0.2 : 1) * 0.0005;
-				if(subgauge < speed){
-					speed -= subgauge;
-					subgauge = 0;
-					speed *= 0.25;
-					if(maingauge < speed){
-						if(practiceMode)
-							maingauge = 0;
-						else
-							becomeGameover();
-					}
-					else
-						maingauge -= speed;
-				}
-				else
-					subgauge -= speed;
 
 				if(eraseEffectTime !== 0 && --eraseEffectTime === 0){
 					for(var i = 0; i < size * size; i++){
