@@ -63,6 +63,7 @@
 		var table;
 		var size;
 		var board;
+		var connectionMap;
 		var cellElems;
 		var selectedCell = null;
 		var selectedCoords = null;
@@ -420,6 +421,13 @@
 					cell.children[0].style.display = board[ix + iy * size] & eraseEffectBit ? 'inline' : 'none';
 					cell.children[1].style.display = board[ix + iy * size] & sourceBit ? 'inline' : 'none';
 					cell.children[2].style.display = board[ix + iy * size] & sinkBit ? 'inline' : 'none';
+
+					// Color background of connected pipes with subtle tone. It is a hint for the player.
+					cell.style.backgroundColor = connectionMap[ix + iy * size] == 1 ? '#cfffff' :
+						connectionMap[ix + iy * size] == 2 ? '#ffffcf' : '';
+					// CSS3 filters are good for simple visual effects, but unfortunately IE doesn't support them at all.
+//					cell.style.filter = connectionMap[ix + iy * size] == 1 ? 'hue-rotate(-90deg)' :
+//						connectionMap[ix + iy * size] == 2 ? 'hue-rotate(90deg)' : '';
 				}
 			}
 
@@ -475,6 +483,7 @@
 			var sizeStr = document.getElementById("sizeSelect").value;
 			size = parseInt(sizeStr);
 			board = new Array(size * size);
+			connectionMap = new Array(size * size);
 
 			gameover = false;
 			points = 0;
@@ -541,19 +550,8 @@
 
 		function check(){
 
-			if(eraseEffectTime !== 0 || fallTime !== 0 || rollTime !== 0)
-				return;
-
-			eraseFrame = 0;
-
-			// horizontal
-			for(var r = 0; r < size; r++) for(var c = 0; c < size; c++){
-				var n, i, cc = 1;
-				var src = board[r * size + c] & ~(eraseEffectBit | fallEffectBit);
-				if(!(src & sourceBit))
-					continue;
+			function tracePipeConnections(r, c, callback){
 				var dist = new Array(size * size);
-				var sinked = false;
 				dist[r * size + c] = 1;
 				for(var j = 0; j < size * size; j++){
 					var count = 0;
@@ -567,22 +565,50 @@
 								count += dist[jy * size + (jx + 1)] = 1;
 							if(jy < size-1 && !dist[(jy + 1) * size + jx] && board[jy * size + jx] & 8 && board[(jy + 1) * size + jx] & 2)
 								count += dist[(jy + 1) * size + jx] = 1;
-							if(board[jy * size + jx] & sinkBit)
-								sinked = true;
+							callback(jx, jy);
 						}
 					}
 					if(!count)
 						break;
 				}
-				if(sinked){
-					var cc = 0;
-					for(var jy = 0; jy < size; jy++) for(var jx = 0; jx < size; jx++){
-						if(dist[jy * size + jx]){
-							board[jy * size + jx] |= eraseEffectBit;
-							cc++;
+				return dist;
+			}
+
+			if(eraseEffectTime !== 0 || fallTime !== 0 || rollTime !== 0)
+				return;
+
+			eraseFrame = 0;
+
+			connectionMap = new Array(size * size);
+
+			// Trace pipe connections
+			for(var r = 0; r < size; r++) for(var c = 0; c < size; c++){
+				var src = board[r * size + c] & ~(eraseEffectBit | fallEffectBit);
+				if(src & sourceBit){
+					var sinked = false;
+					var dist = tracePipeConnections(r, c, function(jx, jy){
+						if(board[jy * size + jx] & sinkBit)
+							sinked = true;
+						if(!(board[jy * size + jx] & sourceBit))
+							connectionMap[jy * size + jx] = 1;
+					});
+
+					if(sinked){
+						var cc = 0;
+						for(var jy = 0; jy < size; jy++) for(var jx = 0; jx < size; jx++){
+							if(dist[jy * size + jx]){
+								board[jy * size + jx] |= eraseEffectBit;
+								cc++;
+							}
 						}
+						scorePoint(cc, r * cellsize, c * cellsize + i * cellsize / 2);
 					}
-					scorePoint(cc, r * cellsize, c * cellsize + i * cellsize / 2);
+				}
+				else if(src & sinkBit){
+					tracePipeConnections(r, c, function(jx, jy){
+						if(!(board[jy * size + jx] & sinkBit))
+							connectionMap[jy * size + jx] = 2;
+					});
 				}
 			}
 		}
