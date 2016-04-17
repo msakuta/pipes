@@ -610,6 +610,9 @@
 		}
 
 		function becomeGameover(){
+			// If we are already in game over state, do not record the score
+			if(gameover)
+				return;
 			gameover = true;
 			newscore = -1;
 			if(!practiceMode){
